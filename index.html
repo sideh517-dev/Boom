@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Crash Demo — Virtual Credits</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#0b1020;color:#fff;min-height:100vh}
+.app{max-width:900px;margin:auto;padding:18px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+h1{font-size:24px;margin:0}.demo{font-size:12px;background:#26304d;padding:7px 10px;border-radius:999px;color:#a9b7ff}
+.card{background:#141b31;border:1px solid #273150;border-radius:18px;padding:18px;box-shadow:0 10px 30px #0005}
+.balance{text-align:center;margin-bottom:14px;color:#aeb8d6}.balance strong{font-size:25px;color:#fff}
+.game{height:360px;border-radius:15px;background:radial-gradient(circle at 50% 40%,#202d55,#0b1020 70%);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid #303b61}
+.grid{position:absolute;inset:0;background-image:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:40px 40px;transform:perspective(300px) rotateX(55deg) scale(1.5);transform-origin:center bottom;top:35%}
+.mult{position:relative;z-index:2;font-size:64px;font-weight:800;text-shadow:0 0 25px #55d6ff99}
+.status{position:absolute;bottom:18px;z-index:3;color:#aeb8d6}
+.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:15px}
+label{font-size:12px;color:#9da9c9;display:block;margin-bottom:6px}
+input,button{width:100%;padding:13px;border-radius:11px;border:1px solid #344061;background:#0d1428;color:#fff;font-size:16px}
+button{cursor:pointer;background:#536dff;border:0;font-weight:700}
+button:hover{filter:brightness(1.08)}button:disabled{opacity:.45;cursor:not-allowed}
+.cash{background:#17a673}.reset{background:#303b5c}
+.message{text-align:center;min-height:22px;margin:14px 0;color:#cbd4ef}
+table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}
+th,td{text-align:left;padding:10px;border-bottom:1px solid #273150}
+.win{color:#49e0a1}.loss{color:#ff7180}
+.note{font-size:12px;color:#7f8baa;text-align:center;margin-top:14px}
+@media(max-width:650px){.controls{grid-template-columns:1fr}.game{height:300px}.mult{font-size:52px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header><h1>🚀 Crash Demo</h1><span class="demo">VIRTUAL CREDITS ONLY</span></header>
+
+<div class="card">
+<div class="balance">Balance: <strong id="balance">1,000.00</strong> credits</div>
+
+<div class="game">
+<div class="grid"></div>
+<div class="mult" id="mult">1.00×</div>
+<div class="status" id="status">Place a virtual bet to start</div>
+</div>
+
+<div class="controls">
+<div>
+<label for="bet">Bet amount</label>
+<input id="bet" type="number" min="1" step="1" value="25">
+</div>
+<div>
+<label>&nbsp;</label>
+<button id="start">Place Bet & Start</button>
+</div>
+<div>
+<label>&nbsp;</label>
+<button id="cash" class="cash" disabled>Cash Out</button>
+</div>
+</div>
+
+<div class="message" id="message"></div>
+
+<table>
+<thead><tr><th>Result</th><th>Bet</th><th>Multiplier</th><th>Credits</th></tr></thead>
+<tbody id="history"></tbody>
+</table>
+
+<button id="reset" class="reset" style="margin-top:15px">Reset Demo Balance</button>
+<div class="note">This is a game-development demo. It uses no real money, deposits, withdrawals, or payment processing.</div>
+</div>
+</div>
+
+<script>
+const balanceEl=document.getElementById("balance");
+const multEl=document.getElementById("mult");
+const statusEl=document.getElementById("status");
+const messageEl=document.getElementById("message");
+const betEl=document.getElementById("bet");
+const startBtn=document.getElementById("start");
+const cashBtn=document.getElementById("cash");
+const resetBtn=document.getElementById("reset");
+const historyEl=document.getElementById("history");
+
+let balance=1000, running=false, cashed=false, bet=0, multiplier=1, crashPoint=0, timer=null;
+let history=[];
+
+function money(n){return n.toFixed(2)}
+function renderBalance(){balanceEl.textContent=money(balance)}
+function randomCrash(){
+  // Demo-only distribution: mostly modest multipliers, with occasional higher ones.
+  const u=Math.random();
+  let x=1/(1-u);
+  return Math.min(25, Math.max(1.01, x));
+}
+function addHistory(result,bet,mult,credits){
+  history.unshift({result,bet,mult,credits});
+  history=history.slice(0,8);
+  historyEl.innerHTML=history.map(h=>
+    `<tr><td class="${h.result==='WIN'?'win':'loss'}">${h.result}</td>
+     <td>${money(h.bet)}</td><td>${h.mult.toFixed(2)}×</td>
+     <td class="${h.credits>=0?'win':'loss'}">${h.credits>=0?'+':''}${money(h.credits)}</td></tr>`
+  ).join("");
+}
+function endCrash(){
+  running=false; cashBtn.disabled=true; startBtn.disabled=false;
+  multiplier=crashPoint; multEl.textContent=multiplier.toFixed(2)+"×";
+  statusEl.textContent="💥 Crashed!";
+  messageEl.textContent=`Crashed at ${multiplier.toFixed(2)}×. You lost ${money(bet)} credits.`;
+  addHistory("LOSS",bet,multiplier,-bet);
+  bet=0;
+  renderBalance();
+}
+function cashOut(){
+  if(!running || cashed)return;
+  cashed=true;
+  const payout=bet*multiplier;
+  const profit=payout-bet;
+  balance+=payout;
+  running=false; clearInterval(timer);
+  cashBtn.disabled=true; startBtn.disabled=false;
+  statusEl.textContent="💰 Cashed out!";
+  messageEl.textContent=`Cashed out at ${multiplier.toFixed(2)}× — profit ${money(profit)} credits.`;
+  addHistory("WIN",bet,multiplier,profit);
+  bet=0;
+  renderBalance();
+}
+function startGame(){
+  if(running)return;
+  const amount=Number(betEl.value);
+  if(!Number.isFinite(amount)||amount<1){messageEl.textContent="Enter a valid bet of at least 1 credit.";return}
+  if(amount>balance){messageEl.textContent="Not enough virtual credits.";return}
+  bet=amount; balance-=bet; renderBalance();
+  running=true; cashed=false; multiplier=1; crashPoint=randomCrash();
+  startBtn.disabled=true; cashBtn.disabled=false;
+  messageEl.textContent=""; statusEl.textContent="🚀 Flying...";
+  const started=performance.now();
+  clearInterval(timer);
+  timer=setInterval(()=>{
+    const elapsed=(performance.now()-started)/1000;
+    multiplier=Math.max(1,Math.pow(1.22,elapsed));
+    multEl.textContent=multiplier.toFixed(2)+"×";
+    if(multiplier>=crashPoint){clearInterval(timer);endCrash()}
+  },50);
+}
+startBtn.onclick=startGame;
+cashBtn.onclick=cashOut;
+resetBtn.onclick=()=>{
+  clearInterval(timer); balance=1000; running=false; bet=0; multiplier=1;
+  multEl.textContent="1.00×"; statusEl.textContent="Place a virtual bet to start";
+  messageEl.textContent="Demo balance reset."; startBtn.disabled=false; cashBtn.disabled=true;
+  history=[]; historyEl.innerHTML=""; renderBalance();
+};
+renderBalance();
+</script>
+</body>
+</html>
